@@ -1,0 +1,62 @@
+<union type='all' prepare='false' intotemp='@tmp_art'>
+    <select>
+        <columns>
+            prepid, estat, codcom, vigini, vigfin, preagr, tipmod, conmod,
+            codart, pvpiva, foto, NVL(monog,'N')monog, NVL(capmens,'N') capmens, NVL(cap,'N')cap, pvpmin, coment, patro, cladoc,
+            tipofe, tarcli, destc, carrec, coment_c, NVL(carrec_p,0)carrec_p, digsig
+        </columns>
+        <from table='tmp_rprepofe' />
+        <where>
+            codart IS NOT NULL OR codart != ''
+        </where>
+    </select>
+    
+    <select>
+        <columns>
+            prepid, estat, tmp_rprepofe.codcom, vigini, vigfin, tmp_rprepofe.preagr, tipmod, conmod,
+            rarticul.codart, pvpiva, foto, NVL(monog,'N')monog, NVL(capmens,'N') capmens, NVL(cap,'N')cap, pvpmin, coment, patro, cladoc,
+            tipofe, tarcli, destc, carrec, coment_c, NVL(carrec_p,0)carrec_p, digsig
+        </columns>
+        <from table='tmp_rprepofe'>
+            <join table='rarticul'>
+                <on>tmp_rprepofe.preagr = rarticul.preagr</on>
+            </join>
+        </from>
+        <where>
+            (tmp_rprepofe.preagr IS NOT NULL OR tmp_rprepofe.preagr != '') AND
+            (rarticul.fecbaj IS NULL OR rarticul.fecbaj &gt; <today />)
+        </where>
+    </select>
+    
+    <!-- afegit dades segon registre -->
+    <select>
+        <columns>
+            prepid, estat, codcom, vigini, vigfin, preagr, tipmod2, conmod2 conmod,
+            codart, pvpiva2, foto, NVL(monog,'N')monog, NVL(capmens,'N') capmens, NVL(cap,'N')cap, pvpmin, coment, patro2, cladoc,
+            tipofe, tarcli, destc, carrec, coment_c, NVL(carrec_p,0)carrec_p, digsig
+        </columns>
+        <from table='tmp_rprepofe' />
+        <where>
+            (codart IS NOT NULL OR codart != '')
+            AND nvl(pvpiva2,0)!= 0
+        </where>
+    </select>
+    
+    <select>
+        <columns>
+            prepid, estat, tmp_rprepofe.codcom, vigini, vigfin, tmp_rprepofe.preagr, tipmod2, conmod2 conmod,
+            rarticul.codart, pvpiva2, foto, NVL(monog,'N')monog, NVL(capmens,'N') capmens, NVL(cap,'N')cap, pvpmin, coment, patro2, cladoc,
+            tipofe, tarcli, destc, carrec, coment_c, NVL(carrec_p,0)carrec_p, digsig
+        </columns>
+        <from table='tmp_rprepofe'>
+            <join table='rarticul'>
+                <on>tmp_rprepofe.preagr = rarticul.preagr</on>
+            </join>
+        </from>
+        <where>
+            (tmp_rprepofe.preagr IS NOT NULL OR tmp_rprepofe.preagr != '') AND
+            (rarticul.fecbaj IS NULL OR rarticul.fecbaj &gt; <today />) AND 
+            nvl(pvpiva2,0)!= 0
+        </where>
+    </select>
+</union>

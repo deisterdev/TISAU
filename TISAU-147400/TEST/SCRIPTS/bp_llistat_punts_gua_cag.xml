@@ -1,0 +1,292 @@
+<!-- ================================================================================= -->
+<!--                                                                                   -->
+<!--    XSQL: bp_llistat_punts_gua_cag                                                     -->
+<!--                                                                                   -->
+<!--    LLamado desde: objeto llistat_punts_gua                                        -->
+<!--                          bp_prep_promogua2hq                                      -->
+<!--                                                                                   -->
+<!--    IPR-7                                                                          -->
+<!--                                                                                   -->
+<!-- ================================================================================= -->
+<xsql-script name='bp_llistat_punts_gua_cag'>
+    <args>
+        <arg name='p_sqlcond' type='string' />
+    </args>
+
+    <body>
+        <drop table='@tmp_punts_gua' temp='y' onexception='ignore' />
+        <select intotemp='@tmp_punts_gua'>
+            <columns>
+                punts_gua.tipmod,
+                punts_gua.vigini,
+                punts_gua.vigfin,
+                punts_gua.conmod,
+                punts_gua.codcom,
+                punts_gua.codfam,
+                punts_gua.codpro,
+                punts_gua.preagr,
+                punts_gua.codart,
+                punts_gua.l1,
+                punts_gua.l7,
+                punts_gua.l4,
+                punts_gua.descompte,
+                punts_gua.imp_descompte,
+                punts_gua.coment,
+                punts_gua.carrec,
+                punts_gua.foto,
+                <nvl>punts_gua.monog, 'N'</nvl> monog,
+
+                <nvl>punts_gua.cap, 'N'</nvl> cap,
+                CASE WHEN punts_gua.cap = 'S'
+                     THEN punts_gua.cap_mida
+                      ELSE NULL
+                 END cap_mida,
+                <nvl>punts_gua.carfix, 'N'</nvl> carfix,
+
+                punts_gua.cladoc,
+                punts_gua.user_updated,
+                punts_gua.date_updated,
+                punts_gua.prepid,
+                NVL(punts_gua.capmens, 'N') capmens
+            </columns>
+            <from table='punts_gua' />
+            <where>
+                ${p_sqlcond}
+            </where>
+        </select>
+
+        <drop table='@tmp_display' temp='y' onexception='ignore' />
+        <union type='all' prepare='false' intotemp='@tmp_display'>
+            <select>
+                <columns>
+                    @tmp_punts_gua.tipmod,
+                    @tmp_punts_gua.vigini,
+                    @tmp_punts_gua.vigfin,
+                    @tmp_punts_gua.conmod,
+                    @tmp_punts_gua.codcom,
+                    garticul.codfam,
+                    @tmp_punts_gua.codpro,
+                    @tmp_punts_gua.preagr,
+                    @tmp_punts_gua.codart,
+                    garticul.nomart,
+                    @tmp_punts_gua.l1,
+                    @tmp_punts_gua.l7,
+                    @tmp_punts_gua.l4,
+                    @tmp_punts_gua.descompte,
+                    @tmp_punts_gua.imp_descompte,
+                    @tmp_punts_gua.coment,
+                    @tmp_punts_gua.carrec,
+                    @tmp_punts_gua.foto,
+                    @tmp_punts_gua.monog,
+
+                    @tmp_punts_gua.cap,
+                    @tmp_punts_gua.cap_mida,
+                    @tmp_punts_gua.carfix,
+
+                    @tmp_punts_gua.cladoc,
+                    @tmp_punts_gua.user_updated,
+                    @tmp_punts_gua.date_updated,
+                    @tmp_punts_gua.prepid,
+                	NVL(@tmp_punts_gua.capmens, 'N') capmens
+                </columns>
+                <from table='@tmp_punts_gua'>
+                    <join table='garticul'>
+                        <on>@tmp_punts_gua.codart = garticul.codigo</on>
+                    </join>
+                </from>
+                <where>
+                    <nvl>@tmp_punts_gua.codart, ''</nvl> != ''
+                </where>
+            </select>
+
+            <select>
+                <columns>
+                    @tmp_punts_gua.tipmod,
+                    @tmp_punts_gua.vigini,
+                    @tmp_punts_gua.vigfin,
+                    @tmp_punts_gua.conmod,
+                    @tmp_punts_gua.codcom,
+                    garticul.codfam,
+                    @tmp_punts_gua.codpro,
+                    @tmp_punts_gua.preagr,
+                    rarticul.codart,
+                    garticul.nomart,
+                    @tmp_punts_gua.l1,
+                    @tmp_punts_gua.l7,
+                    @tmp_punts_gua.l4,
+                    @tmp_punts_gua.descompte,
+                    @tmp_punts_gua.imp_descompte,
+                    @tmp_punts_gua.coment,
+                    @tmp_punts_gua.carrec,
+                    @tmp_punts_gua.foto,
+                    @tmp_punts_gua.monog,
+
+                    @tmp_punts_gua.cap,
+                    @tmp_punts_gua.cap_mida,
+                    @tmp_punts_gua.carfix,
+
+                    @tmp_punts_gua.cladoc,
+                    @tmp_punts_gua.user_updated,
+                    @tmp_punts_gua.date_updated,
+                    @tmp_punts_gua.prepid,
+                	NVL(@tmp_punts_gua.capmens, 'N') capmens
+                </columns>
+                <from table='@tmp_punts_gua'>
+                    <join table='rarticul'>
+                        <on>@tmp_punts_gua.preagr = rarticul.preagr</on>
+                        <join table='garticul'>
+                            <on>rarticul.codart = garticul.codigo</on>
+                        </join>
+                    </join>
+                </from>
+                <where>
+                        <nvl>@tmp_punts_gua.preagr, ''</nvl> != ''
+                    AND <nvl>rarticul.fecbaj, <mdy><m>12</m><d>31</d><y>3000</y></mdy></nvl> > <eval-date d='-90'><today /></eval-date>
+                </where>
+            </select>
+
+            <select>
+                <columns>
+                    @tmp_punts_gua.tipmod,
+                    @tmp_punts_gua.vigini,
+                    @tmp_punts_gua.vigfin,
+                    @tmp_punts_gua.conmod,
+                    @tmp_punts_gua.codcom,
+                    garticul.codfam,
+                    @tmp_punts_gua.codpro,
+                    @tmp_punts_gua.preagr,
+                    garticul.codigo,
+                    garticul.nomart,
+                    @tmp_punts_gua.l1,
+                    @tmp_punts_gua.l7,
+                    @tmp_punts_gua.l4,
+                    @tmp_punts_gua.descompte,
+                    @tmp_punts_gua.imp_descompte,
+                    @tmp_punts_gua.coment,
+                    @tmp_punts_gua.carrec,
+                    @tmp_punts_gua.foto,
+                    @tmp_punts_gua.monog,
+
+                    @tmp_punts_gua.cap,
+                    @tmp_punts_gua.cap_mida,
+                    @tmp_punts_gua.carfix,
+
+                    @tmp_punts_gua.cladoc,
+                    @tmp_punts_gua.user_updated,
+                    @tmp_punts_gua.date_updated,
+                    @tmp_punts_gua.prepid,
+                	NVL(@tmp_punts_gua.capmens, 'N') capmens
+                </columns>
+                <from table='@tmp_punts_gua'>
+                    <join table='gartprov'>
+                        <on>@tmp_punts_gua.codpro = gartprov.codpro</on>
+                        <join table='garticul'>
+                            <on>gartprov.codart = garticul.codigo</on>
+                            <on>garticul.codfam <matches><trim>@tmp_punts_gua.codfam</trim> || '*'</matches></on>
+                        </join>
+                    </join>
+                </from>
+                <where>
+                        <nvl>@tmp_punts_gua.codpro,''</nvl> != ''
+                    AND <nvl>@tmp_punts_gua.codfam,''</nvl> != ''
+                </where>
+            </select>
+
+            <select>
+                <columns>
+                    @tmp_punts_gua.tipmod,
+                    @tmp_punts_gua.vigini,
+                    @tmp_punts_gua.vigfin,
+                    @tmp_punts_gua.conmod,
+                    @tmp_punts_gua.codcom,
+                    @tmp_punts_gua.codfam,
+                    @tmp_punts_gua.codpro,
+                    @tmp_punts_gua.preagr,
+                    <!--'' codigo,-->
+                    rarticul.codart,
+                    <!--gartfami.nomfam nomart,-->
+                    rarticul.desart nomart,
+                    @tmp_punts_gua.l1,
+                    @tmp_punts_gua.l7,
+                    @tmp_punts_gua.l4,
+                    @tmp_punts_gua.descompte,
+                    @tmp_punts_gua.imp_descompte,
+                    @tmp_punts_gua.coment,
+                    @tmp_punts_gua.carrec,
+                    @tmp_punts_gua.foto,
+                    @tmp_punts_gua.monog,
+
+                    @tmp_punts_gua.cap,
+                    @tmp_punts_gua.cap_mida,
+                    @tmp_punts_gua.carfix,
+
+                    @tmp_punts_gua.cladoc,
+                    @tmp_punts_gua.user_updated,
+                    @tmp_punts_gua.date_updated,
+                    @tmp_punts_gua.prepid,
+                	NVL(@tmp_punts_gua.capmens, 'N') capmens
+                </columns>
+                <from table='@tmp_punts_gua'>
+                    <join type='inner' table='gartfami'>
+                        <on>@tmp_punts_gua.codfam = gartfami.codigo</on>
+                    </join>
+                    <join type='inner' table='rarticul'>
+                        <on> rarticul.codagr matches TRIM(@tmp_punts_gua.codfam)||'*' </on>
+                    </join>
+                </from>
+                <where>
+                        <nvl>@tmp_punts_gua.codpro, ''</nvl>  = ''
+                    AND <nvl>@tmp_punts_gua.codfam, ''</nvl> != ''
+                </where>
+            </select>
+
+            <select>
+                <columns>
+                    @tmp_punts_gua.tipmod,
+                    @tmp_punts_gua.vigini,
+                    @tmp_punts_gua.vigfin,
+                    @tmp_punts_gua.conmod,
+                    @tmp_punts_gua.codcom,
+                    garticul.codfam,
+                    @tmp_punts_gua.codpro,
+                    @tmp_punts_gua.preagr,
+                    garticul.codigo,
+                    garticul.nomart,
+                    @tmp_punts_gua.l1,
+                    @tmp_punts_gua.l7,
+                    @tmp_punts_gua.l4,
+                    @tmp_punts_gua.descompte,
+                    @tmp_punts_gua.imp_descompte,
+                    @tmp_punts_gua.coment,
+                    @tmp_punts_gua.carrec,
+                    @tmp_punts_gua.foto,
+                    @tmp_punts_gua.monog,
+
+                    @tmp_punts_gua.cap,
+                    @tmp_punts_gua.cap_mida,
+                    @tmp_punts_gua.carfix,
+                    
+                    @tmp_punts_gua.cladoc,
+                    @tmp_punts_gua.user_updated,
+                    @tmp_punts_gua.date_updated,
+                    @tmp_punts_gua.prepid,
+               		NVL(@tmp_punts_gua.capmens, 'N') capmens
+                </columns>
+                <from table='@tmp_punts_gua'>
+                    <join table='gartprov'>
+                        <on>@tmp_punts_gua.codpro = gartprov.codpro</on>
+                        <join table='garticul'>
+                            <on>gartprov.codart = garticul.codigo</on>
+                        </join>
+                    </join>
+                </from>
+                <where>
+                        <nvl>@tmp_punts_gua.codfam, ''</nvl>  = ''
+                    AND <nvl>@tmp_punts_gua.codpro, ''</nvl> != ''
+                </where>
+            </select>
+        </union>
+        <index name='i_@tmp_display' table='@tmp_display' columns='codart' />
+
+    </body>
+</xsql-script>

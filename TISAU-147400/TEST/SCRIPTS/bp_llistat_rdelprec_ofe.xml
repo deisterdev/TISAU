@@ -1,0 +1,375 @@
+<!-- ================================================================================= -->
+<!--                                                                                   -->
+<!--    XSQL: bp_llistat_rdelprec_ofe                                                  -->
+<!--                                                                                   -->
+<!--    LLamado desde: objeto bp_prep_rdelprec_ofe                                     -->
+<!--                                                                                   -->
+<!--    En la tabla donde se informan las cabeceras solo puede estar la tienda en      -->
+<!--    un grupo, nopuede tener la misma tienda 3 grupos de cabecera                   -->
+<!--                                                                                   -->
+<!--    AM-164    + listado bp_rdelprec_ofe.                                           -->
+<!--                                                                                   -->
+<!-- ================================================================================= -->
+<xsql-script name='bp_llistat_rdelprec_ofe'>
+    <args>
+        <arg name='p_fecini' type='date' />
+        <arg name='p_fecfin' type='date' />
+        <arg name='p_codcom' type='string' />
+        <arg name='p_delega' type='string' />
+        <arg name='p_estab'  type='string' />
+        <arg name='p_sql'    type='string' />
+    </args>
+
+    <body>
+        <drop table='@tmp_display' onexception='ignore'/>
+        <drop table='@tmp_ofe' onexception='ignore'/>
+        <drop table='@tmp_rdelprec_ofe' onexception='ignore'/>
+	        
+        <!-- recoge todos los artículos que están de oferta para el período seleccionado -->
+        <select intotemp='@tmp_ofe'>
+            <columns> --+INDEX(gret_pvparti i_gret_pvparti_8)
+                gret_pvparti.delega,
+                gret_pvparti.fecini, gret_pvparti.fecfin,
+                rarticul.codagr,
+                gret_pvparti.codart codiar,
+                rarticul.descar, bp_get_tipsur(rarticul.codart, gret_pvparti.delega) codsur, rarticul.unicon, gret_pvparti.pvp,
+                gartalma.codpro, ctercero.nombre, NVL(gart_uniconv.reldes,1) cancom, gartalma.priori,
+                ROUND(pvp*166.386, 0) ptes,
+                ROUND(gret_pvparti.pvp/(rarticul.canfor*rarticul.unicon), 2) preumes
+            </columns>
+            <from table='gret_pvparti'>
+                <join table='gartalma'>
+                    <on>gret_pvparti.codart = gartalma.codart</on>
+                    <on>gret_pvparti.delega = gartalma.codalm</on>
+                    <join table='ctercero'>
+                        <on>gartalma.codpro = ctercero.codigo</on>
+                    </join>
+                </join>
+                <join table='rarticul'>
+                    <on>gret_pvparti.codart = rarticul.codart</on>
+                </join>
+                <join type='left' table='gart_unidefs' >
+                    <on>gret_pvparti.codart = gart_unidefs.codart</on>
+                    <join type='left' table='gart_uniconv'>
+                        <on>gart_unidefs.codart = gart_uniconv.codart</on>
+                        <on>gart_unidefs.varlog = gart_uniconv.varlog</on>
+                        <on>gart_unidefs.coduni = gart_uniconv.udmori</on>
+                    </join>
+                </join>
+                <join table='usr_del'>
+                    <on>gret_pvparti.delega = usr_del.delega</on>
+                </join>
+            </from>
+            <where>
+                gret_pvparti.delega ${p_delega}
+                AND gret_pvparti.fecfin &lt;= <p_fecfin/>
+                AND gret_pvparti.fecini &gt;= <p_fecini/>
+                AND gret_pvparti.tipdoc[1] = 'O'
+                AND gartalma.priori = 99
+                AND gart_unidefs.priori = 99
+                AND rarticul.codcom ${p_codcom}
+                AND usr_del.usuari = <system.user.getCode />
+                --AND rarticul.codcom MATCHES r_es_comprador()
+            </where>
+        </select>
+        <index name='i_@tmp_ofe_1' table='@tmp_ofe' columns='codiar, fecini, fecfin'/>
+
+        <!-- CDATA -->
+        <!-- recoge las ofertas entradas en rprepofe -->
+        <drop table='tmp_rprepofe' temp='y' onexception='ignore' />
+        <select intotemp='tmp_rprepofe'>
+            <columns>*</columns>
+            <from table='rprepofe' />
+            <where>
+                vigini &gt;= <p_fecini/>
+                AND vigfin &lt;= <p_fecfin/>
+                AND codcom ${p_codcom}
+            </where>
+        </select>
+
+        <!--<call name='rprepofe_llistat_nou'>
+            <p_confident />
+        </call>-->
+        <include code='rprepofe_llistat_nou' name='begin' />
+        <drop table='tmp_rprepofe' temp='y' onexception='ignore' />
+        <!-- FIN CDATA -->
+
+        <!-- @tmp_art contiene rprepofe -->
+        <!-- añadir cabeceras de compras bp_rprepofe_cartven -->
+        <union type='all' intotemp='@tmp_rdelprec_ofe'>
+            <!-- rprepofe por delegaciones -->
+            <select>
+                <columns>
+                    @tmp_ofe.delega, <nvl>gdelegac.auxchr1,'ca'</nvl> idioma, gdelegac.agrupa,
+                    <!--MIN(@tmp_ofe.fecini) fecini, MAX(@tmp_ofe.fecfin) fecfin,-->
+                    (@tmp_ofe.fecini) fecini, (@tmp_ofe.fecfin) fecfin,
+                    @tmp_ofe.codagr, @tmp_ofe.codiar,
+                    bp_nomart_traduc(@tmp_ofe.codiar,r_es_delegacio(<system.user.getCode />)) descar,
+                    @tmp_ofe.codsur, @tmp_ofe.unicon, @tmp_art.monog, @tmp_art.cap, ROUND(@tmp_ofe.pvp,2) pvp ,
+                    @tmp_ofe.codpro, @tmp_ofe.nombre, @tmp_ofe.cancom, @tmp_ofe.priori, @tmp_ofe.ptes,
+                    @tmp_ofe.preumes,
+                    tipofe,
+                    @tmp_art.coment,
+
+                    bp_rprepofe_cartven.galileo,
+                    bp_rprepofe_cartven.posterfix, <!-- TISAU-144207 -->
+                    bp_rprepofe_cartven.num_lotestalvi,
+                    bp_rprepofe_cartven.capven,
+                    bp_rprepofe_cartven.carmur,
+                    bp_rprepofe_cartven.carves,
+                    bp_rprepofe_cartven.carsup,
+                    bp_rprepofe_cartven.cartot,
+                    CASE WHEN rprepofe_cap.grpcap IS NOT NULL
+                            THEN 'S'
+                            ELSE 'N'
+                    END grpcap
+                </columns>
+                <from table='@tmp_ofe'>
+                    <join table='gdelegac'>
+                        <on>@tmp_ofe.delega = gdelegac.codigo</on>
+                    </join>
+                    <join table='@tmp_art'>
+                        <on>@tmp_ofe.codiar = @tmp_art.codart</on>
+                        <on>@tmp_ofe.fecini &gt;= @tmp_art.vigini</on>
+                        <on>@tmp_ofe.fecfin &lt;= @tmp_art.vigfin</on>
+                        <join type='left' table='bp_rprepofe_cartven'>
+                            <on>@tmp_art.prepid = bp_rprepofe_cartven.prepid</on>
+                            <on>@tmp_art.codart = bp_rprepofe_cartven.codart</on>
+                        </join>
+                        <join type='left' table='rprepofe_cap'>
+                            <on>@tmp_art.prepid = rprepofe_cap.prepid</on>
+                            <join table='grups_capl'>
+                                <on>grups_capl.codi = rprepofe_cap.grpcap</on>
+                                <on>grups_capl.delega = gdelegac.codigo</on>
+                            </join>
+                        </join>
+                    </join>
+                </from>
+                <where>
+                    INSTR(@tmp_art.conmod, TRIM(gdelegac.codigo)) != 0
+
+                    AND (bp_rprepofe_cartven.delega = gdelegac.codigo
+                         OR (bp_rprepofe_cartven.agrupa = gdelegac.agrupa
+                             AND (SELECT COUNT(*)
+                                        FROM bp_rprepofe_cartven vendes
+                                      WHERE vendes.prepid = bp_rprepofe_cartven.prepid
+                                            AND vendes.delega = gdelegac.codigo) = 0))
+                </where>
+            </select>
+            <!-- rprepofe por ensenyas -->
+            <select>
+                <columns>
+                    @tmp_ofe.delega, <nvl>gdelegac.auxchr1,'ca'</nvl> idioma, gdelegac.agrupa,
+                    <!--MIN(@tmp_ofe.fecini) fecini, MAX(@tmp_ofe.fecfin) fecfin,-->
+                    (@tmp_ofe.fecini) fecini, (@tmp_ofe.fecfin) fecfin,
+                    @tmp_ofe.codagr, @tmp_ofe.codiar,
+                    bp_nomart_traduc(@tmp_ofe.codiar,r_es_delegacio(<system.user.getCode />)) descar,
+                    @tmp_ofe.codsur, @tmp_ofe.unicon, @tmp_art.monog, @tmp_art.cap, ROUND(@tmp_ofe.pvp,2) pvp ,
+                    @tmp_ofe.codpro, @tmp_ofe.nombre, @tmp_ofe.cancom, @tmp_ofe.priori, @tmp_ofe.ptes,
+                    @tmp_ofe.preumes,
+                    tipofe,
+                    @tmp_art.coment,
+
+                    bp_rprepofe_cartven.galileo,                    
+                    bp_rprepofe_cartven.posterfix, <!-- TISAU-144207 -->
+                    bp_rprepofe_cartven.num_lotestalvi,
+                    bp_rprepofe_cartven.capven,
+                    bp_rprepofe_cartven.carmur,
+                    bp_rprepofe_cartven.carves,
+                    bp_rprepofe_cartven.carsup,
+                    bp_rprepofe_cartven.cartot,
+                    CASE WHEN rprepofe_cap.grpcap IS NOT NULL
+                            THEN 'S'
+                            ELSE 'N'
+                    END grpcap
+                </columns>
+                <from table='@tmp_ofe'>
+                    <join table='gdelegac'>
+                        <on> @tmp_ofe.delega = gdelegac.codigo </on>
+                    </join>
+                    <join table='@tmp_art'>
+                        <on>@tmp_ofe.codiar = @tmp_art.codart</on>
+                        <on>@tmp_ofe.fecini &gt;= @tmp_art.vigini</on>
+                        <on>@tmp_ofe.fecfin &lt;= @tmp_art.vigfin</on>
+                        <join type='left' table='bp_rprepofe_cartven'>
+                            <on>@tmp_art.prepid = bp_rprepofe_cartven.prepid</on>
+                            <on>@tmp_art.codart = bp_rprepofe_cartven.codart</on>
+                        </join>
+                         <join type='left' table='rprepofe_cap'>
+                            <on>@tmp_art.prepid = rprepofe_cap.prepid</on>
+                            <join table='grups_capl'>
+                                <on>grups_capl.codi = rprepofe_cap.grpcap</on>
+                                <on>grups_capl.delega = gdelegac.codigo</on>
+                            </join>
+                        </join>
+                    </join>
+                </from>
+                <where>
+                    INSTR(@tmp_art.conmod, TRIM(gdelegac.codigo)) = 0
+                    AND INSTR(@tmp_art.conmod, gdelegac.agrupa[1,2]) != 0
+
+                    AND (bp_rprepofe_cartven.delega = gdelegac.codigo
+                         OR (bp_rprepofe_cartven.agrupa = gdelegac.agrupa
+                             AND (SELECT COUNT(*)
+                                        FROM bp_rprepofe_cartven vendes
+                                      WHERE vendes.prepid = bp_rprepofe_cartven.prepid
+                                            AND vendes.delega = gdelegac.codigo) = 0))
+                </where>
+            </select>
+            <!-- ofertas sin registro en rprepofe -->
+            <select>
+                <columns>
+                    @tmp_ofe.delega, <nvl>gdelegac.auxchr1,'ca'</nvl> idioma, gdelegac.agrupa,
+                    <!--MIN(@tmp_ofe.fecini) fecini, MAX(@tmp_ofe.fecfin) fecfin,-->
+                    (@tmp_ofe.fecini) fecini, (@tmp_ofe.fecfin) fecfin,
+                    @tmp_ofe.codagr, @tmp_ofe.codiar,
+                    bp_nomart_traduc(@tmp_ofe.codiar,r_es_delegacio(<system.user.getCode />)) descar,
+                    @tmp_ofe.codsur, @tmp_ofe.unicon, '' monog, '' cap, ROUND(@tmp_ofe.pvp,2) pvp ,
+                    @tmp_ofe.codpro, @tmp_ofe.nombre, @tmp_ofe.cancom, @tmp_ofe.priori, @tmp_ofe.ptes,
+                    @tmp_ofe.preumes,
+                    '' tipofe,
+                    '' coment,
+
+                    0 galileo,
+                    0 posterfix, <!-- TISAU-144207 -->
+                    0 num_lotestalvi,
+                    0 capven,
+                    0 carmur,
+                    0 carves,
+                    0 carsup,
+                    0 cartot,
+                    'N' grpcap
+                </columns>
+                <from table='@tmp_ofe'>
+                    <join table='gdelegac'>
+                        <on>@tmp_ofe.delega = gdelegac.codigo</on>
+                    </join>
+                </from>
+                <where>
+                    NOT EXISTS(SELECT codiar FROM @tmp_art WHERE @tmp_art.codart = @tmp_ofe.codiar)
+                </where>
+            </select>
+        </union>
+        
+        <drop table='@tmp_art' onexception='ignore' />
+        <!-- se pasa todo dentor del script para poder llamarlo desde la tarea programada -->
+        <if>
+            <expr>
+                <eq><p_estab/>S</eq>
+            </expr>
+            <then>
+                <!-- bp_prep_rdelprec_ofe -->
+                <drop table='@tmp_rdelprec_ofe_1' onexception='ignore'/>
+                <select intotemp='@tmp_rdelprec_ofe_1'>
+                    <columns>
+                        @tmp_rdelprec_ofe.delega, @tmp_rdelprec_ofe.idioma, @tmp_rdelprec_ofe.agrupa,
+                        MIN(@tmp_rdelprec_ofe.fecini) fecini, MAX(@tmp_rdelprec_ofe.fecfin) fecfin,
+                        @tmp_rdelprec_ofe.codagr, @tmp_rdelprec_ofe.codiar codart,
+                        @tmp_rdelprec_ofe.descar,
+                        @tmp_rdelprec_ofe.codsur, @tmp_rdelprec_ofe.pvp,
+                        @tmp_rdelprec_ofe.codpro, @tmp_rdelprec_ofe.nombre,
+                        tipofe,
+                        @tmp_rdelprec_ofe.coment,
+
+                        @tmp_rdelprec_ofe.grpcap cabpro,
+
+                        @tmp_rdelprec_ofe.capven,@tmp_rdelprec_ofe.carmur,@tmp_rdelprec_ofe.carves,
+                        @tmp_rdelprec_ofe.carsup,@tmp_rdelprec_ofe.cartot,@tmp_rdelprec_ofe.galileo,@tmp_rdelprec_ofe.posterfix,
+                        @tmp_rdelprec_ofe.num_lotestalvi
+                    </columns>
+                    <from table='@tmp_rdelprec_ofe'/>
+                    <where>#p_sql </where>
+                    <group>1,2,3,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23</group>
+                </select>
+
+                <!-- solo mostrar los que tiene dados de alta la delegacion en ese momento -->
+                <select intotemp='@tmp_llistat_rdelprec_ofe'>
+                    <columns>
+                        @tmp_rdelprec_ofe_1.delega,
+                        @tmp_rdelprec_ofe_1.fecini, @tmp_rdelprec_ofe_1.fecfin,
+                        @tmp_rdelprec_ofe_1.codagr, 
+
+                        @tmp_rdelprec_ofe_1.codart,
+
+                        CASE WHEN @tmp_rdelprec_ofe_1.idioma = 'es'
+                                THEN REPLACE(TRIM(<nvl>bp_idi_rarticul.desart,''</nvl>) || ' ' || TRIM(<nvl>bp_idi_rarticul.clase,''</nvl>) || ' ' || TRIM(<nvl>bp_idi_rarticul.marca,''</nvl>) || ' ' || TRIM(<nvl>bp_idi_rarticul.desfor,''</nvl>),'"','')
+                                ELSE REPLACE(TRIM(<nvl>@tmp_rdelprec_ofe_1.descar,''</nvl>),'"','')
+                        END descar,
+
+                        @tmp_rdelprec_ofe_1.codsur, @tmp_rdelprec_ofe_1.pvp,
+                        @tmp_rdelprec_ofe_1.codpro, @tmp_rdelprec_ofe_1.nombre,
+                        CASE WHEN @tmp_rdelprec_ofe_1.tipofe = 'A' THEN '2ª unitat al 50%'
+                             WHEN @tmp_rdelprec_ofe_1.tipofe = 'B' THEN '2ª unitat al 70%'
+                             WHEN @tmp_rdelprec_ofe_1.tipofe = 'C' THEN '3X2'
+                             WHEN @tmp_rdelprec_ofe_1.tipofe = 'D' THEN 'ALTRES'
+                             WHEN @tmp_rdelprec_ofe_1.tipofe = 'F' THEN '4x3'
+                             WHEN @tmp_rdelprec_ofe_1.tipofe = 'G' THEN 'Gran Estalvi'
+                             WHEN @tmp_rdelprec_ofe_1.tipofe = 'H' THEN 'Lot Estalvi'
+                             ELSE ' '
+                        END tipofe,
+                        @tmp_rdelprec_ofe_1.num_lotestalvi,
+                        @tmp_rdelprec_ofe_1.coment,
+
+                        @tmp_rdelprec_ofe_1.cabpro,
+                        CASE WHEN cabpro = 'S'
+                                THEN gartprov.codpro
+                                ELSE ''
+                        END prov,
+                        @tmp_rdelprec_ofe_1.capven,@tmp_rdelprec_ofe_1.carmur,@tmp_rdelprec_ofe_1.carves,
+                        @tmp_rdelprec_ofe_1.carsup,@tmp_rdelprec_ofe_1.cartot,@tmp_rdelprec_ofe_1.galileo,@tmp_rdelprec_ofe_1.posterfix
+                    </columns>
+                    <from table='@tmp_rdelprec_ofe_1'>
+                        <join type='left' table='gartprov'>
+                            <on>@tmp_rdelprec_ofe_1.codart = gartprov.codart</on>
+                        </join>
+                        <join table='gartdele'>
+                            <on>@tmp_rdelprec_ofe_1.delega = gartdele.delega</on>
+                            <on>@tmp_rdelprec_ofe_1.codart = gartdele.codart</on>
+                        </join>
+                        <join type='left' table='bp_idi_rarticul'>
+                            <on>@tmp_rdelprec_ofe_1.codart = bp_idi_rarticul.codart </on>
+                        </join>
+                    </from>
+                    <where>
+                        gartprov.priori = (<select>
+                                    <columns>MAX(gartprov_priori.priori) </columns>
+                                    <from table='gartprov' alias='gartprov_priori'/>
+                                    <where>
+                                        gartprov_priori.codart = @tmp_rdelprec_ofe_1.codart
+                                    </where>
+                                  </select>)
+                        AND gartdele.fecini &lt;= @tmp_rdelprec_ofe_1.fecini
+                        AND <nvl>gartdele.fecbaj, @tmp_rdelprec_ofe_1.fecfin</nvl> &gt; @tmp_rdelprec_ofe_1.fecini
+                    </where>
+                </select>
+            </then>
+            <else>
+                <!-- bp_rdelprec_ofe -->
+                <select intotemp='@tmp_llistat_rdelprec_ofe'>
+                    <columns>
+                        delega,
+                        MIN(fecini) fecini, MAX(fecfin) fecfin,
+                        codagr, codiar,
+                        descar,
+                        codsur, unicon, monog, cap, pvp ,
+                        codpro, nombre, cancom, priori, ptes,
+                        preumes,
+                        CASE WHEN tipofe = 'A' THEN '2ª unitat al 50%'
+                             WHEN tipofe = 'B' THEN '2ª unitat al 70%'
+                             WHEN tipofe = 'C' THEN '3X2'
+                             WHEN tipofe = 'D' THEN 'ALTRES'
+                             WHEN tipofe = 'F' THEN '4x3'
+                             WHEN tipofe = 'G' THEN 'Gran Estalvi'
+                             WHEN tipofe = 'H' THEN 'Lot Estalvi'
+                             ELSE ' '
+                        END tipofe,
+                        coment
+                    </columns>
+                    <from table='@tmp_rdelprec_ofe'/>
+                    <where>#p_sql </where>
+                    <group>1,5,6,7,8,9,10,11,12,13,14,15,4,16,17,18,19</group>
+                </select>
+            </else>
+        </if>
+    </body>
+</xsql-script>

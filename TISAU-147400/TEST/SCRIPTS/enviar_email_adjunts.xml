@@ -1,0 +1,112 @@
+<!-- ====================================================================================== -->
+<!--                                                                                   		-->
+<!--  XSQL: enviar_email_adjunts. Si hi ha hagut algun error, retorna un -1			   		-->
+<!--																				   		-->
+<!--  Paràmetres: 																	   		-->
+<!--			p_from: from del correu (pot ser null). En aquest cas, serà root		   	-->
+<!--			p_address_to: a qui s'enviarà el correu								   		-->
+<!--	   		p_subject: tema del missatge										   		-->
+<!--			p_body: cos del missatge											   		-->
+<!--			p_address_cc: a qui s'enviarà el correu amb còpia (pot ser null)		   	-->
+<!--			p_address_bcc: a qui s'enviarà el correu amb còpia oculta (pot ser null)   	-->
+<!--			p_attach: arxius adjunts del correu. Ha de ser un array o null         		-->
+<!--                                                                                   		-->
+<!-- ====================================================================================== -->
+
+<xsql-script name='enviar_email_adjunts'>
+    <args>
+        <arg name='p_from'	 		/>
+        <arg name='p_address_to'	/>
+        <arg name='p_subject' 		/>
+        <arg name='p_body'    		/>
+        <arg name='p_address_cc' 	/>
+        <arg name='p_address_bcc' 	/>
+        <arg name='p_attach'		/>
+    </args>
+    
+    <body>
+        <!-- Buscarem smtphost -->
+        <call name = 'bp_get_global_param' into = 'm_smtphost'>
+        	<string>POSTFIX</string>
+		</call> 
+        
+        <try>
+            <body>            
+                <!-- Comprovem si el from és null o no -->
+                <if>
+                	<expr><isnull><p_from /></isnull></expr>
+                    <then>
+                        <set name='p_from'>root@bonpreu.cat</set>
+                    </then>
+                </if>            
+                
+				<!-- Comprovem si cal enviar adjunt o no -->                                
+                <if>
+                    <expr><isnull><p_attach /></isnull></expr>
+                    <then>
+						<!-- Sense adjunt -->
+                        <mail
+                        	smtphost = '#m_smtphost'
+                        	from = '#p_from'
+                        	to = '#p_address_to'
+                			cc = '#p_address_cc'
+                        	bcc = '#p_address_bcc'
+                        	subject = '#p_subject'
+                        	encoding = 'iso-8859-1'
+                        >
+                            <content type='text/html'><html.div style='font-family:Verdana;font-size:12px'><p_body /></html.div></content>
+                        </mail>
+                    </then>
+                    <else>
+                        <!-- Amb adjunt -->
+                        <mail
+                        	smtphost = '#m_smtphost'
+                        	from = '#p_from'
+                        	to = '#p_address_to'
+                        	cc = '#p_address_cc'
+                        	bcc = '#p_address_bcc'
+                        	subject = '#p_subject'
+                        	encoding = 'iso-8859-1'
+                        >
+                            <content type='text/html'><html.div style='font-family:Verdana;font-size:12px'><p_body /></html.div></content>
+                            <attachs>
+                                <p_attach />
+                            </attachs>
+                        </mail>                        
+                    </else>
+                </if>
+            </body>
+            
+            <!-- Hi ha hagut algun error enviant el correu -->
+            <catch>
+                <set name='m_subject'><string>Error enviant correu (<system.function.getParent />)</string></set>
+                <set name='p_body_err'>
+                    <html.div style='font-family:Verdana;font-size:11px'>
+                        <html.p style='margin-left:50px;'>
+                            <html.strong>ENVIAMENT QUE HA PROVOCAT L'ERROR:</html.strong><html.br />
+                            <html.strong>Títol:</html.strong> <p_subject /><html.br />
+                            <html.strong>To:</html.strong>  <p_address_to /><html.br />
+                            <html.strong>En còpia:</html.strong>  <ifnull><p_address_cc /><string /></ifnull><html.br />
+                            <html.strong>En còpia oculta:</html.strong>  <ifnull><p_address_bcc /><string /></ifnull><html.br />
+                        </html.p>
+                        <html.p>
+                            <html.strong>Error:</html.strong> <error.message /> <html.br />
+                        </html.p>
+                    </html.div>
+                </set>
+                
+                <mail
+                	smtphost='#m_smtphost'
+                	from='root@bonpreu.cat'
+                	to='operosi@bonpreu.cat'
+                	subject='#m_subject'
+                	encoding = 'iso-8859-1'
+                >
+                    <content type='text/html'><p_body_err /></content>
+                </mail>
+                <return><number>-1</number></return>
+            </catch>
+        </try>
+        <return><number>0</number></return>
+    </body>
+</xsql-script>

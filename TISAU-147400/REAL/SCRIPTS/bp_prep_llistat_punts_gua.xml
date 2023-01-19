@@ -1,0 +1,202 @@
+<!-- ================================================================================= -->
+<!--                                                                                   -->
+<!--    XSQL: bp_prep_llistat_punts_gua                                                -->
+<!--                                                                                   -->
+<!--    LLamado desde: objeto llistat_punts_gua                                        -->
+<!--                          bp_prep_promogua2hq                                      -->
+<!--                                                                                   -->
+<!--    IPR-7                                                                          -->
+<!--                                                                                   -->
+<!-- ================================================================================= -->
+<xsql-script name='bp_prep_llistat_punts_gua'>
+    <args>
+        <arg name='p_sqlcond' type='string' />
+        <arg name='p_delega'  type='string' />
+        <arg name='p_estab'   type='string' />        
+    </args>
+
+    <body>
+        <drop table='@tmp_llistat_punts_gua' onexception='ignore'/>
+
+        <call name='bp_llistat_punts_gua'>
+            <p_sqlcond/>
+        </call>
+
+        <if>
+            <expr>
+                <eq><p_estab/>S</eq>
+            </expr>
+            <then>     
+                <union type='all' intotemp='@tmp_llistat_punts_gua'>
+                    <select>
+                        <columns>
+                            gartdele.delega,
+                            @tmp_display.vigini, @tmp_display.vigfin, @tmp_display.codcom,
+                            @tmp_display.codfam,
+                            
+                            @tmp_display.codart,    
+                            
+                            CASE WHEN <nvl>gdelegac.auxchr1,'ca'</nvl> = 'es'
+                                    THEN REPLACE(TRIM(<nvl>bp_idi_rarticul.desart,''</nvl>) || ' ' || TRIM(<nvl>bp_idi_rarticul.clase,''</nvl>) || ' ' || TRIM(<nvl>bp_idi_rarticul.marca,''</nvl>) || ' ' || TRIM(<nvl>bp_idi_rarticul.desfor,''</nvl>),'"','')
+                                    ELSE REPLACE(TRIM(<nvl>@tmp_display.nomart,''</nvl>),'"','')
+                            END nomart,
+                            
+                            bp_get_tipsur(@tmp_display.codart, '0') codsur,
+                            @tmp_display.descompte, @tmp_display.cap, bp_punts_gua_cartven.carmur, NVL(@tmp_display.codpro,'') codpro, NVL(@tmp_display.capmens,'N') capmens
+                        </columns>
+                        <from table='@tmp_display'>
+                            <join table='gartdele'>
+                                <on>@tmp_display.codart = gartdele.codart</on>
+                                <join table='gdelegac'>
+                                    <on>gartdele.delega = gdelegac.codigo</on>
+                                    <join table='usr_del'>
+                                        <on>gdelegac.codigo = usr_del.delega</on>
+                                    </join>
+                                    <join table='bp_punts_gua_cartven'>
+                                        <on>@tmp_display.prepid = bp_punts_gua_cartven.prepid</on>
+                                        <on>@tmp_display.codart = bp_punts_gua_cartven.codart</on>
+                                        <on>
+                                            (gdelegac.codigo = bp_punts_gua_cartven.delega
+                                             OR (gdelegac.agrupa = bp_punts_gua_cartven.agrupa
+                                                 AND (SELECT COUNT(*)
+                                                        FROM bp_punts_gua_cartven cartven
+                                                       WHERE cartven.prepid = @tmp_display.prepid
+                                                             AND cartven.delega = gdelegac.codigo) = 0))
+                                        </on>
+                                    </join>
+                                </join>
+                            </join>   
+                            <join type='left' table='bp_idi_rarticul'>
+                                <on>@tmp_display.codart = bp_idi_rarticul.codart </on>
+                            </join>
+                        </from>
+                        <where>
+                            INSTR(@tmp_display.conmod, TRIM(gdelegac.codigo)) = 0
+                            AND INSTR(@tmp_display.conmod, gdelegac.agrupa[1,2]) != 0
+                            AND gartdele.fecini &lt;= @tmp_display.vigini
+                            AND <nvl>gartdele.fecbaj, @tmp_display.vigfin</nvl> &gt; @tmp_display.vigini
+                            
+                            AND gdelegac.codigo ${p_delega}
+                            AND usr_del.usuari = <system.user.getCode />
+                        </where>
+                        <group>1,2,3,4,5,6,7,8,9,10,11,12,13</group>
+                    </select>
+                    <select>
+                        <columns>
+                            gartdele.delega,
+                            @tmp_display.vigini, @tmp_display.vigfin, @tmp_display.codcom,     
+                            @tmp_display.codfam,
+
+                            @tmp_display.codart,
+
+                            CASE WHEN <nvl>gdelegac.auxchr1,'ca'</nvl> = 'es'
+                                    THEN REPLACE(TRIM(<nvl>bp_idi_rarticul.desart,''</nvl>) || ' ' || TRIM(<nvl>bp_idi_rarticul.clase,''</nvl>) || ' ' || TRIM(<nvl>bp_idi_rarticul.marca,''</nvl>) || ' ' || TRIM(<nvl>bp_idi_rarticul.desfor,''</nvl>),'"','')
+                                    ELSE REPLACE(TRIM(<nvl>@tmp_display.nomart,''</nvl>),'"','')
+                            END nomart,
+                            
+                            bp_get_tipsur(@tmp_display.codart, '0') codsur,
+                            @tmp_display.descompte, @tmp_display.cap, bp_punts_gua_cartven.carmur, NVL(@tmp_display.codpro,'') codpro, NVL(@tmp_display.capmens,'N') capmens
+                        </columns>
+                        <from table='@tmp_display'>
+                            <join table='gartdele'>
+                                <on>@tmp_display.codart = gartdele.codart</on>
+                                <join table='gdelegac'>
+                                    <on>gartdele.delega = gdelegac.codigo</on>
+                                    <join table='usr_del'>
+                                        <on>gdelegac.codigo = usr_del.delega</on>
+                                    </join>
+                                    <join table='bp_punts_gua_cartven'>
+                                        <on>@tmp_display.prepid = bp_punts_gua_cartven.prepid</on>
+                                        <on>@tmp_display.codart = bp_punts_gua_cartven.codart</on>
+                                        <on>
+                                            (gdelegac.codigo = bp_punts_gua_cartven.delega
+                                             OR (gdelegac.agrupa = bp_punts_gua_cartven.agrupa
+                                                 AND (SELECT COUNT(*)
+                                                        FROM bp_punts_gua_cartven cartven
+                                                       WHERE cartven.prepid = @tmp_display.prepid
+                                                             AND cartven.delega = gdelegac.codigo) = 0))
+                                        </on>
+                                    </join>
+                                </join>
+                            </join>
+                            <join type='left' table='bp_idi_rarticul'>
+                                <on>@tmp_display.codart = bp_idi_rarticul.codart </on>
+                            </join>
+                        </from>
+                        <where>
+                            INSTR(@tmp_display.conmod, TRIM(gdelegac.codigo)) != 0
+                            AND gartdele.fecini &lt;= @tmp_display.vigini
+                            AND <nvl>gartdele.fecbaj, @tmp_display.vigfin</nvl> &gt; @tmp_display.vigini
+                            
+                            AND gdelegac.codigo ${p_delega}
+                            AND usr_del.usuari = <system.user.getCode />
+                        </where>
+                        <group>1,2,3,4,5,6,7,8,9,10,11,12,13</group>
+                    </select>
+                </union>
+            </then>
+            <else>
+                <select intotemp='@tmp_llistat_punts_gua'>
+                    <columns>
+                        vigini,
+                        vigfin,
+                        conmod,
+                        @tmp_display.codcom,
+                        codfam,
+                        gartfami.nomfam,
+                        gartprov.codpro codpro_pri,
+                        gproveed.tardtg,
+                        @tmp_display.codpro,
+                        @tmp_display.preagr,
+                        @tmp_display.codart,
+                        bp_get_tipsur(@tmp_display.codart, '0') codsur,
+                        @tmp_display.nomart,
+                        ROUND(l1,2) l1,
+                        ROUND(l7,2) l7,
+                        ROUND(l4,2) l4,
+                        descompte,
+                        imp_descompte,
+                        coment,
+                        gclasdoc.nomcla,
+                        carrec,
+                        foto,
+                        monog,
+                        NVL(@tmp_display.capmens,'N') capmens,
+                        cap,
+                        cladoc,
+                        @tmp_display.user_updated,
+                        @tmp_display.date_updated,
+                        @tmp_display.prepid
+                    </columns>
+                    <from table='@tmp_display'>
+                        <join table='gartfami' type='left'>
+                            <on>@tmp_display.codfam = gartfami.codigo</on>
+                        </join>
+                        <join table='gclasdoc' type='left'>
+                            <on>gclasdoc.tabid = 'EX'</on>
+                            <on>gclasdoc.tipdoc <matches>'OFE'</matches></on>
+                            <on>@tmp_display.cladoc = gclasdoc.codigo</on>
+
+                        </join>
+                        <join table='rarticul' type='left'>
+                            <on>@tmp_display.codart = rarticul.codart</on>
+                        </join>
+                        <join table='gartprov' type='left'>
+                            <on>@tmp_display.codart = gartprov.codart</on>
+                            <on>
+                                gartprov.priori = (SELECT MAX(g.priori)
+                                                     FROM gartprov g
+                                                    WHERE g.codart = @tmp_display.codart)
+                            </on>
+                            <join table='gproveed' type='left'>
+                                <on>gartprov.codpro = gproveed.codigo</on>
+                            </join>
+                        </join>
+                    </from>
+                    <group>1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29</group>
+                </select>
+            </else>
+        </if>
+
+    </body>
+</xsql-script>

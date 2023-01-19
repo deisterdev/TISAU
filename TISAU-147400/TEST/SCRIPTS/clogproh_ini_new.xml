@@ -1,0 +1,217 @@
+<!-- ====================================================================================== -->
+<!--                                                                                        -->
+<!--    XSQL:  clogproh_ini_new                                                             -->
+<!--                                                                                        -->
+<!--    Inicializa una cabecera de log de procesos (clogproh) y devuelve su identificador   -->
+<!--    serial.                                                                             -->
+<!--                                                                                        -->
+<!--    Llamadas :                                                                          -->
+<!--    ==========                                                                          -->
+<!--    Desde cualquier proceso a petición del programador.                                 -->
+<!--                                                                                        -->
+<!--    Protocolo de funcionamiento:                                                        -->
+<!--    ===========================                                                         -->
+<!--    1) clogproh_ini_new     Inicio de proceso :                                         -->
+<!--                        La primera vez inicializa la variable global g_clogproh_log_id  -->
+<!--                        y inserta el registro controlador de proceso en clogproh.       -->
+<!--                        Siempre carga un elemento en el stack global g_stack_procname   -->
+<!--                        con el nombre del proceso para permitir control de procesos     -->
+<!--                        anidados.                                                       -->
+<!--                                                                                        -->
+<!--    2) clogprol_set     Registra control de track de proceso o de error en clogprol.    -->
+<!--                        No altera el contenido del stack global g_stack_procname.       -->
+<!--                                                                                        -->
+<!--    3) clogproh_fin     Fin de proceso :                                                -->
+<!--                        Descarga un elemento de la pila del objeto g_stack_procname y   -->
+<!--                        si nos encontramos en el proceso principal finaliza el          -->
+<!--                        registro controlador de proceso modificando la columna          -->
+<!--                        clogproh.log_date_end                                           -->
+<!--                                                                                        -->
+<!--    Recursos globales:                                                                  -->
+<!--    =================                                                                   -->
+<!--    1) Variable global     : g_clogproh_log_id                                          -->
+<!--       Usada en            : clogproh_ini_new, clogprol_set, clogproh_fin y             -->
+<!--                             gsermask_get_docser                                        -->
+<!--                                                                                        -->
+<!--    2) Objeto stack global : g_stack_procname                                           -->
+<!--       Usado en            : clogproh_ini_new, clogprol_set y clogproh_fin              -->
+<!--                                                                                        -->
+<!-- ====================================================================================== -->
+<xsql-script name='clogproh_ini_new'>
+    <test unit='1'>
+        <arg name='p_procname'  value='proces_test'/>
+        <arg name='p_table'     value=''/>
+        <arg name='p_exclusive' value='1'/>
+    </test>
+
+    <args>
+        <arg name='p_procname'   type='string'/>
+        <arg name='p_table'      type='string'/>
+        <arg name='p_exclusive'  type='integer'/>
+    </args>
+
+    <body>
+
+        <!-- ================================================================= -->
+        <!-- Finalizamos registros de control de procesos zombies u obsoletos. -->
+        <!-- ================================================================= -->
+        <function name='local_finish_process'>
+            <args>
+                <arg name='p_procname'   type='string'/>
+                <arg name='p_table'      type='string'/>
+            </args>
+
+            <body>
+
+                <!-- ================================================================= -->
+                <!-- Finalizamos registros de control de procesos zombies.             -->
+                <!-- ================================================================= -->
+                <set name='date_deads' type='date'>
+                    <sub>
+                        <date.current /><date.units type='HH'>24</date.units>
+                    </sub>
+                </set>
+                <update table='clogproh'>
+                    <column name='log_error'>999</column>
+                    <column name='log_date_end'><date.current /></column>
+                    <where>
+                        log_proc = <p_procname/> AND
+                        <nvl>log_table, <whitespace /></nvl> = <nvl><p_table />, <whitespace /></nvl> AND
+                        log_date_end IS NULL AND
+                        log_date_ini &lt;  <date_deads />
+                    </where>
+                </update>
+
+                <!-- ================================================================= -->
+                <!-- Finalizamos registros de control de procesos interrumpidos por    -->
+                <!-- cancelaciones del servicio.                                       -->
+                <!-- ================================================================= -->
+                <set name='m_server_start_time'>
+                    <java.shell>
+                        <args/>
+                        <body>
+                            java.lang.management.RuntimeMXBean rtbean = java.lang.management.ManagementFactory.getRuntimeMXBean();
+                            java.sql.Timestamp d = new java.sql.Timestamp(rtbean.getStartTime());
+                            return d;
+                        </body>
+                    </java.shell>
+                </set>
+
+                <update table='clogproh'>
+                    <column name='log_error'>999</column>
+                    <column name='log_date_end'><date.current /></column>
+                    <where>
+                        log_host = <system.server.getHostName /> AND
+                        log_proc = <p_procname/> AND
+                        <nvl>log_table, <whitespace /></nvl> = <nvl><p_table />, <whitespace /></nvl> AND
+                        log_date_end IS NULL AND
+                        log_date_ini &lt; <m_server_start_time />
+                    </where>
+                </update>
+
+            </body>
+        </function>
+
+        <!-- ================================================================= -->
+        <!-- Evaluamos parametros                                              -->
+        <!-- ================================================================= -->
+        <if>
+           <expr>
+              <ne><p_exclusive />1</ne>
+              <and />
+              <ne><p_exclusive />0</ne>
+           </expr>
+           <then>
+               <exception code='P_EXCLUSIVE' message='clogproh_ini_new: p_exclusive valores [1,0].'/>
+           </then>
+        </if>
+
+        <if>
+           <expr>
+              <isnull><p_procname /></isnull>
+           </expr>
+           <then>
+               <exception code='P_PROCNAME' message='clogproh_ini_new: p_procname debe estar informado.'/>
+           </then>
+        </if>
+
+        <!-- ================================================================= -->
+        <!-- Informa valores para clogproh                                     -->
+        <!-- ================================================================= -->
+        <set name='clogproh_log_id'>0</set>
+        <set name='clogproh_log_proc'><p_procname /></set>
+        <set name='clogproh_log_table'><p_table /></set>
+        <set name='clogproh_log_host'><system.server.getHostName /></set>
+        <set name='clogproh_log_user'><system.user.getCode/></set>
+        <set name='clogproh_log_error'>0</set>
+        <set name='clogproh_log_uniq'><p_exclusive /></set>
+        <set name='clogproh_log_date_ini'><date.current /></set>
+
+        <!-- ================================================================  -->
+        <!-- Include customización                                             -->
+        <!-- ================================================================= -->
+        <include code='clogproh_ini_new' name='begin' />
+
+        <!-- ================================================================= -->
+        <!-- Si la variable global g_clogproh_log_id ya está definida          -->
+        <!-- significa que nos encontramos dentro de un proceso anidado y en   -->
+        <!-- tales circunstancias no se genera registro de control en clogproh.-->
+        <!-- ================================================================= -->
+        <if>
+            <expr><not><global.isdefined name='g_clogproh_log_id' /></not></expr>
+            <then>
+
+                <!-- ================================================================= -->
+                <!-- Si no estamos en una transacción abierta aprovechamos para        -->
+                <!-- finalizar los registros de control de procesos zombies u obsoletos-->
+                <!-- ================================================================= -->
+                <if>
+                    <expr><not><connection.isOnTransaction/></not></expr>
+                    <then>
+                        <local_finish_process>
+                            <p_procname />
+                            <p_table />
+                        </local_finish_process>
+                    </then>
+                </if>
+
+                <!-- ================================================================= -->
+                <!-- Insertar en 'clogproh'                                            -->
+                <!-- ================================================================= -->
+                <insert table='clogproh' prefix='clogproh_' />
+
+                <!-- ================================================================= -->
+                <!-- Cierre de transacción para garantizar que el registro controlador -->
+                <!-- del proceso sobrevive siempre.                                    -->
+                <!-- OJO!!! Siempre hay una transacción abierta, al menos, implícita,  -->
+                <!-- debido al insert previo a clogproh.                               -->
+                <!-- ================================================================= -->
+                <connection.commit/>
+
+                <!-- ================================================================= -->
+                <!-- Crea e inicializa la variable global g_clogproh_log_id            -->
+                <!-- ================================================================= -->
+                <global.set name='g_clogproh_log_id' type='integer'><sqlca.serial /></global.set>
+
+                <!-- ================================================================= -->
+                <!-- Crea la pila global g_stack_procname                              -->
+                <!-- ================================================================= -->
+                <global.set name='g_stack_procname'><stack /></global.set>
+
+            </then>
+        </if>
+
+        <!-- ================================================================= -->
+        <!-- Siempre carga un elemento a la pila g_stack_procname              -->
+        <!-- Recordar: Los objetos globales (stacks, arrays,etc.) se modifican -->
+        <!-- por referencia, las variables globales no.                        -->
+        <!-- ================================================================= -->
+        <set name='stack_procname'><global.get name='g_stack_procname'/></set>
+        <stack.push name='stack_procname'><p_procname /></stack.push>
+
+        <!-- ================================================================= -->
+        <!-- Retornamos el identificador serial de la cabecera                 -->
+        <!-- ================================================================= -->
+        <return><global.get name='g_clogproh_log_id' type='integer' /></return>
+    </body>
+</xsql-script>

@@ -1,0 +1,24 @@
+<call name='bp_send_ofe_gua_estab'  into='m_logid'>
+    <args>
+        <arg>$AGRUPA</arg>
+        <arg>$DELEGA</arg>
+        <arg><expression>$VIGINI</expression></arg>
+        <arg><expression>$VIGFIN</expression></arg>
+        <arg>$CODCOM</arg>
+        <arg>$TIPUS</arg>
+    </args>
+</call>
+
+<select>
+    <columns>
+        clogprol.log_message, clogprol.log_err_code, clogprol.log_fieldc_1
+    </columns>
+    <from table='clogproh'>
+        <join table='clogprol'>
+            <on>clogproh.log_id = clogprol.log_id</on>
+        </join>
+    </from>
+    <where>
+        clogprol.log_id = #m_logid
+    </where>
+</select>

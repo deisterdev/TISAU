@@ -1,0 +1,549 @@
+<!-- ================================================================================= -->
+<!--                                                                                   -->
+<!--  XSQLScript bp_send_ofe_gua_estab                                                 -->
+<!--                                                                                   -->
+<!--                                                                                   -->
+<!--  AM-164                                                                           -->
+<!--                                                                                   -->
+<!-- ================================================================================= -->
+<xsql-script name='bp_send_ofe_gua_estab'>
+    <args>
+        <arg name='p_ensenya' type='string'/>
+        <arg name='p_delega'  type='string'/>
+        <arg name='p_fecini'  type='date'/>
+        <arg name='p_fecfin'  type='date'/>
+      <!--  <arg name='p_codcom'  type='string'/> -->
+        <arg name='p_tipus'   type='string'/>
+    </args>
+
+    <body>
+        <!-- ======================================================================== -->
+        <!-- FUNCT: local_clogprol_message.                                           -->
+        <!--                                                                          -->
+        <!-- Escriu el log en la taula clogprol.                                      -->
+        <!-- ======================================================================== -->
+        <function name='local_clogprol_message'>
+            <args>
+                <arg name='p_logid'  type='integer' />
+                <arg name='p_strmsg' type='string' />
+                <arg name='p_error'  type='string' />
+                <arg name='p_delega' type='string' />
+            </args>
+            <body>
+                <call name='clogprol_set'>
+                    <p_logid />
+                    <p_strmsg />
+                    <null />
+                    <null />
+                    <p_error />
+                    <p_delega />
+                    <null />
+                    <null />
+                    <null />
+                </call>
+            </body>
+        </function>
+
+        <!-- Funcion para obtener mail extraida de AM-242 -->
+        <function name='local_get_mail_addr'>
+            <args>
+                <arg name='p_delega' />
+            </args>
+            <body>
+                
+                 <set name='m_mailbcc'><string>david.ribe@bonpreu.cat</string></set>
+                
+                <set name='p_mailto'><string>david.ribe@bonpreu.cat</string></set>
+                
+                <println> <p_mailto/> <m_mailbcc /> </println>
+                <if>
+                    <expr>
+                        <lt><number><p_delega /></number>1000</lt>
+                    </expr>
+                    <then>
+                        <set name='l_user'><string>s<p_delega/></string></set>
+                        <set name='l_mailto'><string>s<p_delega />@bonpreu.cat</string></set>
+                        <set name='l_cc'><string><p_delega />d@bonpreu.cat</string></set>
+                    </then>
+                    <else>
+                        <set name='l_user'><string><p_delega/>r</string></set>
+                        <set name='l_mailto'><string><p_delega />c@bonpreu.cat</string></set>
+                        <set name='l_cc'><string><p_delega />r@bonpreu.cat, <p_delega />d@bonpreu.cat</string></set>
+                    </else>
+                </if>
+
+                <if>
+                    <expr><string.matches><system.dbms.getCode />*test</string.matches></expr>
+                    <then>
+                        <set name='l_user'>osi.operadors@bonpreu.cat</set>
+                        <set name='l_mailto'>osi.operadors@bonpreu.cat</set>
+                        <set name='l_cc'>osi.operadors@bonpreu.cat</set>
+                    </then>
+                </if>
+
+                <return>
+                    <l_mailto />
+                    <l_cc />
+                    <l_user/>
+                </return>
+            </body>
+        </function>
+
+        <set name='m_codcom'><string/></set>
+        <set name='m_first'><true/></set>
+        <foreach>
+            <select prefix='m_'>
+                <columns>codigo</columns>
+                <from table='ctercero'/>
+                <where>
+                    codare = 'COM'
+                    <!-- AND codigo ${p_codcom} -->
+                </where>
+            </select>
+            <do>
+                <if>
+                    <expr><m_first/></expr>
+                    <then>
+                        <set name='m_codcom'><m_codigo/></set>
+                        <set name='m_first'><false/></set>
+                    </then>
+                    <else>
+                        <set name='m_codcom'><string><m_codcom/>|<m_codigo/></string></set>
+                    </else> 
+                </if>
+            </do>
+        </foreach>
+
+        <!-- inicializar proceso de logs -->
+        <call name='clogproh_ini_new' into='p_logid'>
+            <system.function.getName />
+            <null />
+            <number>1</number>
+        </call>
+
+        <foreach>
+            <select prefix='m_'>
+                <columns>UNIQUE gdelegac.codigo delega, <nvl>gdelegac.auxchr1, 'ca'</nvl> idioma, gdelegac.nomdlg</columns>
+                <from table='gdelegac'/>
+                <where>
+                    ((gdelegac.agrupa IN(SELECT agrupa
+                                            FROM bp_rprepofe_cartven
+                                          WHERE bp_rprepofe_cartven.agrupa = gdelegac.agrupa)
+                      AND gdelegac.codigo != '0141')
+                     OR gdelegac.codigo = '0141')
+
+                    AND gdelegac.codigo ${p_delega}
+                    AND ((gdelegac.agrupa ${p_ensenya} AND "${p_ensenya}" NOT MATCHES '*0141*')
+                         OR ("${p_ensenya}" MATCHES '*0141*' AND gdelegac.codigo ${p_ensenya}))
+                    AND gdelegac.fecalt &lt;= <p_fecini/>
+                    AND <nvl>gdelegac.auxfec1, <p_fecini/></nvl> &gt;= <p_fecini/>
+                </where>
+            </select>
+            <do>
+                <try>
+                    <body>
+                        <connection.begin/>
+                        <!-- obtener mail de los establecimientos -->
+                        <local_get_mail_addr into='m_mailto,m_mailcc,m_user'>
+                            <m_delega/>
+                        </local_get_mail_addr>
+
+                        <!-- Assumpte mail-->
+                        <set name='m_asunto_es'><string>Listado Ofertas/Bonificación <p_tipus/>: <m_delega/> - <p_fecini/></string></set>
+                        <set name='m_asunto_ca'><string>Llistat Ofertes/Guardiola <p_tipus/>: <m_delega/> - <p_fecini/></string></set>
+
+                        <!-- Text mail -->
+                        <set name='m_mail_body_ca'>
+                            <html.p>
+                                Bon dia,<html.br />
+                                <html.br />
+                                Adjuntem els PDF i excel de l'oferta i bonificació del dia <html.b><p_fecini/></html.b> per l’establiment <html.b><m_delega/> - <m_nomdlg/></html.b>. <html.br />
+
+                                <html.br />
+                                Aquest és un email enviat automàticament pel sistema. No cal respondre'l.<html.br />
+                                <html.br />
+                                Salutacions,<html.br />
+                                <html.br />
+                                Bon Preu, SAU<html.br />
+                                <html.br />
+                                XSQLScript (wic_bp): <system.function.getName /><html.br />
+                            </html.p>
+                        </set>
+
+                        <set name='m_mail_body_es'>
+                            <html.p>
+                                Buenos días,<html.br />
+                                <html.br />
+                                Adjuntamos los PDF y excel de la oferta y bonificación del dia <html.b><p_fecini/></html.b> para el estaclecimiento <html.b><m_delega/> - <m_nomdlg/></html.b>. <html.br />
+
+                                <html.br />
+                                Este es un email enviado automáticamente por el sistema. No responder.<html.br />
+                                XSQLScript (wic_bp): <system.function.getName /><html.br />
+                                <html.br />
+                                Saludos,<html.br />
+                                <html.br />
+                                Bon Preu, SAU<html.br />
+                            </html.p>
+                        </set>
+
+                        <!-- ==================================================== -->
+                        <!--                     EXCEL                            -->
+                        <!-- ==================================================== -->
+                        <!-- Títols de columnes OFERTA -->
+                        <set name='m_titol_ofe_0'><webapp.getColumnMemo  table='gret_pvparti'        column='delega'  lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_ofe_1'><webapp.getColumnMemo  table='gret_pvparti'        column='fecini'  lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_ofe_2'><webapp.getColumnMemo  table='gret_pvparti'        column='fecfin'  lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_ofe_3'><webapp.getColumnMemo  table='rarticul'            column='codagr'  lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_ofe_4'><webapp.getColumnMemo  table='rarticul'            column='codart'  lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_ofe_5'><webapp.getColumnMemo  table='rarticul'            column='descar'  lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_ofe_6'><webapp.getColumnMemo  table='rarticul'            column='codsur'  lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_ofe_7'><webapp.getColumnMemo  table='rprepofe'            column='pvpiva'  lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_ofe_8'><webapp.getColumnMemo  table='gartalma'            column='codpro'  lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_ofe_9'><webapp.getColumnMemo  table='ctercero'            column='nombre'  lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_ofe_10'><webapp.getColumnMemo  table='rprepofe'            column='tipofe'  lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_ofe_11'><webapp.getColumnMemo  table='bp_rprepofe_cartven' column='num_lotestalvi'  lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_ofe_12'><webapp.getColumnMemo table='rprepofe'            column='coment'  lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_ofe_13'><webapp.getColumnMemo table='rprepofe'            column='cap'     lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_ofe_14'><webapp.getColumnMemo table='gproveed'            column='codigo'  lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_ofe_15'><webapp.getColumnMemo table='bp_rprepofe_cartven' column='capven'  lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_ofe_16'><webapp.getColumnMemo table='bp_rprepofe_cartven' column='carmur'  lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_ofe_17'><webapp.getColumnMemo table='bp_rprepofe_cartven' column='carves'  lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_ofe_18'><webapp.getColumnMemo table='bp_rprepofe_cartven' column='carsup'  lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_ofe_19'><webapp.getColumnMemo table='bp_rprepofe_cartven' column='cartot'  lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_ofe_20'><webapp.getColumnMemo table='bp_rprepofe_cartven' column='galileo' lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='end_ofe'>20</set>
+
+                        <!-- Títols de columnes GUARDIOLA -->
+                        <set name='m_titol_gua_0'><webapp.getColumnMemo table='virtualbp'            column='delega'    lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_gua_1'><webapp.getColumnMemo table='punts_gua'            column='vigini'    lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_gua_2'><webapp.getColumnMemo table='punts_gua'            column='vigfin'    lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_gua_3'><webapp.getColumnMemo table='punts_gua'            column='codfam'    lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_gua_4'><webapp.getColumnMemo table='punts_gua'            column='codart'    lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_gua_5'><webapp.getColumnMemo table='garticul'             column='nomart'    lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_gua_6'><webapp.getColumnMemo table='rarticul'             column='codsur'    lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_gua_7'><webapp.getColumnMemo table='punts_gua'            column='descompte' lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_gua_8'><webapp.getColumnMemo table='punts_gua'            column='cap'       lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='m_titol_gua_9'><webapp.getColumnMemo table='bp_punts_gua_cartven' column='carmur'    lang='${m_idioma}' strip-br='true' /></set>
+                        <set name='end_gua'>9</set>
+                        <!-- bp_prep_rdelprec_ofe -->
+                        <!-- @tmp_llistat_rdelprec_ofe -->
+                        <drop table='@tmp_llistat_rdelprec_ofe' onexception='ignore' />
+                        <call name='bp_llistat_rdelprec_ofe'>
+                            <p_fecini/>
+                            <p_fecfin/>
+                           <!-- <p_codcom/> -->
+                            <string>= '<m_delega/>'</string>
+                            <string>S</string>
+                            <string>1=1</string>
+                        </call>
+
+                        <!-- bp_llistat_prep_punts_gua -->
+                        <!-- @tmp_llistat_punts_gua -->
+                        <drop table='@tmp_llistat_punts_gua' onexception='ignore' />
+                        <call name='bp_prep_llistat_punts_gua'>
+                            <string>punts_gua.vigini = '<p_fecini/>'</string>
+                            <string>= '<m_delega/>'</string>
+                            <string>S</string>
+                        </call>
+
+                        <!-- Create the workbook -->
+                        <set name='doc'>
+                            <excel.Workbook />
+                        </set>
+
+                        <!-- ==================================================== -->
+                        <!--                   PESTAÑA OFERTA                     -->
+                        <!-- ==================================================== -->
+                        <!-- Create the workbook sheet with name Hoja_1 -->
+                        <set name='sheet_ofe'>
+                            <excel.Workbook.createSheet name='OFERTA'>
+                                <doc/>
+                            </excel.Workbook.createSheet>
+                        </set>
+
+                        <!-- Títols de les columnes -->
+                        <!-- Crear cel·la -->
+                        <set name='format'><string>font-weight:bold;</string></set>
+                        <for name='col_id' start='0' end='#end_ofe' step='1'>
+                            <do>
+                                <set name='fc'>
+                                    <excel.Sheet.createCell row='0' col='#col_id'>
+                                        <sheet_ofe/>
+                                    </excel.Sheet.createCell>
+                                </set>
+
+                                <set name='m_titol'><get>m_titol_ofe_<col_id/></get></set>
+
+                                <excel.Cell.setCellStyle css='#format'>
+                                    <doc/>
+                                    <excel.Cell.setCellValue>
+                                        <fc/>
+                                        <m_titol/>
+                                    </excel.Cell.setCellValue>
+                                </excel.Cell.setCellStyle>
+                            </do>
+                        </for>
+
+                        <set name='row'>
+                            <excel.Sheet.createRow row='1'>
+                                <sheet_ofe/>
+                            </excel.Sheet.createRow>
+                        </set>
+
+                        <set name='cell'>
+                            <excel.Row.createCell col='0'>
+                                <row/>
+                            </excel.Row.createCell>
+                        </set>
+
+                        <!-- Omplim l'Excel amb els resultats de la consulta -->
+                        <excel.Cell.setCellValueSQL threed='true'>
+                            <sheet_ofe />
+                            <row />
+                            <cell />
+                            <string>
+                                SELECT
+                                    delega,
+                                    CAST(fecini AS CHAR(10)) fecini,
+                                    CAST(fecfin AS CHAR(10)) fecfin,
+                                    codagr,  codart,
+                                    bp_nomart_traduc(codart,r_es_delegacio('<m_user/>')) nomart, <!-- los listados se obtienen en el idioma del usuario, no de la delegación -->
+                                    codsur,
+                                    pvp,     codpro,  nombre,
+                                    tipofe, 
+                                    CASE WHEN num_lotestalvi = 0
+                                            THEN NULL
+                                            ELSE num_lotestalvi
+                                    END num_lotestalvi,
+                                    coment,
+                                    cabpro,  prov,    capven,
+                                    carmur,  carves,  carsup,
+                                    cartot,  galileo
+                                   FROM @tmp_llistat_rdelprec_ofe
+                                  WHERE delega = '<m_delega/>'
+                            </string>
+                        </excel.Cell.setCellValueSQL>
+
+
+                        <for name='col_id' start='0' end='#end_ofe' step='1'>
+                            <do>
+                                <excel.Sheet.autoSizeColumn col='#col_id'>
+                                    <sheet_ofe/>
+                                </excel.Sheet.autoSizeColumn>
+                            </do>
+                        </for>
+
+                        <!-- ==================================================== -->
+                        <!--                  PESTAÑA GUARDIOLA                   -->
+                        <!-- ==================================================== -->
+                         <set name='sheet_gua'>
+                            <excel.Workbook.createSheet name='GUARDIOLA'>
+                                <doc/>
+                            </excel.Workbook.createSheet>
+                        </set>
+
+                        <set name='sheet_gua'>
+                            <excel.Workbook.getSheetAt index='1'>
+                                <doc/>
+                            </excel.Workbook.getSheetAt>
+                        </set>
+
+                        <set name='row1'>
+                            <excel.Sheet.createRow row='1'>
+                                <sheet_gua/>
+                            </excel.Sheet.createRow>
+                        </set>
+
+                        <set name='cell1'>
+                            <excel.Row.createCell col='0'>
+                                <row1/>
+                            </excel.Row.createCell>
+                        </set>
+
+
+                        <excel.Cell.setCellType type="1">
+                            <cell1/>
+                        </excel.Cell.setCellType>
+
+
+                        <set name='format'><string>font-weight:bold;</string></set>
+                        <for name='col_id' start='0' end='#end_gua' step='1'>
+                            <do>
+                                <set name='fc1'>
+                                    <excel.Sheet.createCell row='0' col='#col_id'>
+                                        <sheet_gua/>
+                                    </excel.Sheet.createCell>
+                                </set>
+
+                                <set name='m_titol'><get>m_titol_gua_<col_id/></get></set>
+
+                                <excel.Cell.setCellStyle css='#format'>
+                                    <doc/>
+                                    <excel.Cell.setCellValue>
+                                        <fc1/>
+                                        <m_titol/>
+                                    </excel.Cell.setCellValue>
+                                </excel.Cell.setCellStyle>
+                            </do>
+                        </for>
+
+                        <!-- Omplim l'Excel amb els resultats de la consulta -->
+                        <excel.Cell.setCellValueSQL threed='true'>
+                            <sheet_gua />
+                            <row1 />
+                            <cell1/>
+                            <string>
+                                SELECT
+                                    delega,
+                                    CAST(vigini AS CHAR(10)) vigini,
+                                    CAST(vigfin AS CHAR(10)) vigfin,
+                                    codfam,
+                                    codart,
+                                    bp_nomart_traduc(codart,r_es_delegacio('<m_user/>')) nomart, <!-- los listados se obtienen en el idioma del usuario, no de la delegación -->
+                                    codsur,
+                                    descompte,
+                                    cap,
+                                    carmur
+                                FROM @tmp_llistat_punts_gua
+                                WHERE delega = '<m_delega/>'
+                            </string>
+                        </excel.Cell.setCellValueSQL>
+
+                        <for name='col_id' start='0' end='#end_gua' step='1'>
+                            <do>
+                                <excel.Sheet.autoSizeColumn col='#col_id'>
+                                    <sheet_gua/>
+                                </excel.Sheet.autoSizeColumn>
+                            </do>
+                        </for>
+
+                        <!-- Creating a temporary EXCEL file with the workbook data -->
+                        <excel.Workbook.write>
+                            <doc/>
+                            <file name='llistat_ofe_gua.xls' type='absolute'/>
+                        </excel.Workbook.write>
+                        <!-- ==================================================== -->
+                        <!--                     FIN EXCEL                        -->
+                        <!-- ==================================================== -->
+
+                        <!-- si las dos pestañas están vacias, no enviar -->
+                        <if>
+                            <expr>
+                                <and>
+                                    <not>
+                                        <select>
+                                            <columns>COUNT(*)</columns>
+                                            <from table='@tmp_llistat_rdelprec_ofe'/>
+                                            <where>
+                                                delega = <m_delega/>
+                                            </where>
+                                        </select>
+                                    </not>
+                                    <not>
+                                        <select>
+                                            <columns>COUNT(*)</columns>
+                                            <from table='@tmp_llistat_punts_gua'/>
+                                            <where>
+                                                delega = <m_delega/>
+                                            </where>
+                                        </select>
+                                    </not>
+                                </and>
+                            </expr>
+                            <then>
+                                <foreach.continue/>
+                            </then>
+                        </if>
+
+                        <!-- afegeixo adjunts -->
+                        <array name='m_attach' />
+                        <array.add name='m_attach'>
+                            <!-- Afegim PDF generat a partir del formulari -->
+                            <mail.attach type='application/pdf'>
+                                <fop.form
+                                    code='bp_prep_rdelprec_ofe_print'
+                                    temp='true'
+                                    file='OFERTA'
+                                    type='pdf'
+                                    cond='1=1'
+                                    din='A4'>
+                                    <vars>
+                                        <var name='TIPUS'>OFERTA</var>
+                                        <var name='FECINI'><date.format format='dd-MM-yyyy'><p_fecini/></date.format></var>
+                                        <var name='FECFIN'><date.format format='dd-MM-yyyy'><p_fecfin/></date.format></var>
+                                        <var name='CODCOM'><m_codcom/></var>
+                                        <var name='DELEGA'><m_delega/></var>
+                                    </vars>
+                                </fop.form>
+                            </mail.attach>
+
+                            <mail.attach type='application/pdf'>
+                                <fop.form
+                                    code='bp_prep_rdelprec_ofe_print'
+                                    temp='true'
+                                    file='GUARDIOLA'
+                                    type='pdf'
+                                    cond='1=1'
+                                    din='A4'>
+                                    <vars>
+                                        <var name='TIPUS'>GUARDIOLA</var>
+                                        <var name='FECINI'><date.format format='dd-MM-yyyy'><p_fecini/></date.format></var>
+                                        <var name='FECFIN'><date.format format='dd-MM-yyyy'><p_fecfin/></date.format></var>
+                                        <var name='CODCOM'><m_codcom/></var>
+                                        <var name='DELEGA'><m_delega/></var>
+                                    </vars>
+                                </fop.form>
+                            </mail.attach>
+                            <!-- Afegim EXCEL creat a l'XSQL Script -->
+                            <mail.attach>
+                                <file name='llistat_ofe_gua.xls' type='absolute' />
+                            </mail.attach>
+                        </array.add>
+                        
+                        
+                        <println> <p_mailto/> <m_mailbcc /> </println>
+
+                        <!-- ==================================================== -->
+                        <!--                     EMAIL.                           -->
+                        <!-- ==================================================== -->
+                        <call name='enviar_email_adjunts'>
+                            <null />
+                            <string><p_mailto/></string>
+                            <get>m_asunto_<m_idioma/></get>
+                            <get>m_mail_body_<m_idioma/></get> <!-- body -->
+                            <m_mailcc />
+                            <!-- <string><m_mailbcc /></string> -->
+                            <m_mailbcc />
+                            <m_attach/> <!-- adjunto -->
+                        </call>
+
+                        <local_clogprol_message>
+                            <p_logid />
+                            <string>Enviado <m_delega/></string>
+                            <null />
+                            <m_delega/>
+                        </local_clogprol_message>
+                        <connection.commit/>
+                    </body>
+                    <catch>
+                        <connection.rollback/>
+
+                        <local_clogprol_message>
+                            <p_logid />
+                            <error.message/>
+                            <string>E</string>
+                            <m_delega/>
+                        </local_clogprol_message>
+                    </catch>
+                </try>
+            </do>
+        </foreach>
+
+        <!-- Cerramos registro de proceso. -->
+        <call name='clogproh_fin'>
+            <p_logid />
+        </call>
+
+        <return><p_logid/></return>
+    </body>
+</xsql-script>

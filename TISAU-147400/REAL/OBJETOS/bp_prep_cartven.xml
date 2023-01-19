@@ -1,0 +1,4 @@
+<select first='1'>
+    <columns><rowid table='bp_rprepofe_cartven' /></columns>
+    <from table='bp_rprepofe_cartven'/>
+</select>

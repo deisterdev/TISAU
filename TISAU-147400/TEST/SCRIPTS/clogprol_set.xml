@@ -1,0 +1,48 @@
+<!-- ====================================================================================== -->
+<!--                                                                                        -->
+<!--    XSQL:  clogprol_set                                                                 -->
+<!--                                                                                        -->
+<!--    Graba registros en clogprol para un identificador (clogprol.log_id) determinado     -->
+<!--                                                                                        -->
+<!--    Llamadas :                                                                          -->
+<!--    ==========                                                                          -->
+<!--    Desde cualquier proceso a petición del programador                                  -->
+<!--                                                                                        -->
+<!-- ====================================================================================== -->
+<xsql-script name='clogprol_set'>
+
+    <args>
+        <arg name='p_log_id'       type='integer'/>
+        <arg name='p_log_message'  type='string'/>
+        <arg name='p_err_code'     type='integer'/>
+        <arg name='p_err_code1'    type='integer'/>
+        <arg name='p_err_stat'     type='string'/>
+        <arg name='p_log_fieldc_1' type='string'/>
+        <arg name='p_log_fieldc_2' type='string'/>
+        <arg name='p_log_fieldn_1' type='integer'/>
+        <arg name='p_log_fieldn_2' type='integer'/>
+    </args>
+
+    <body>
+        <!-- ================================================================= -->
+        <!-- Informa valores para clogprol                                     -->
+        <!-- ================================================================= -->
+        <set name='clogprol_log_lin'>0</set>
+        <set name='clogprol_log_id'><p_log_id /></set>
+        <set name='clogprol_log_date'><date.current /></set>
+        <set name='clogprol_log_message'><p_log_message /></set>
+        <set name='clogprol_log_err_code'><p_err_code /></set>
+        <set name='clogprol_log_err_code1'><p_err_code1 /></set>
+        <set name='clogprol_log_err_stat'><p_err_stat /></set>
+        <set name='clogprol_log_fieldc_1'><p_log_fieldc_1 /></set>
+        <set name='clogprol_log_fieldc_2'><p_log_fieldc_2 /></set>
+        <set name='clogprol_log_fieldn_1'><p_log_fieldn_1 /></set>
+        <set name='clogprol_log_fieldn_2'><p_log_fieldn_2 /></set>
+
+        <!-- ================================================================= -->
+        <!-- Insertaren 'clogprol'                                             -->
+        <!-- ================================================================= -->
+        <insert table='clogprol' prefix='clogprol_' />
+
+    </body>
+</xsql-script>

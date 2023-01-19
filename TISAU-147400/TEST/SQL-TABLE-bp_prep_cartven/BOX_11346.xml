@@ -1,0 +1,74 @@
+<select>
+    <columns>
+        UNIQUE
+        <rowid table='bp_punts_gua_cartven' />,
+        bp_punts_gua_cartven.prepid,
+        $AGRUPA agrupa,
+        punts_gua.vigini,
+        punts_gua.vigfin,
+        garticul.codfam,
+
+        (SELECT group_concat(conmod) FROM punts_gua punts_gua1 WHERE punts_gua1.vigini = punts_gua.vigini AND 
+                    (punts_gua.preagr = punts_gua1.preagr OR punts_gua1.codart = punts_gua.codart)) conmod_tot,
+
+        <nvl><trim>punts_gua.conmod</trim>, ''</nvl> conmod,
+
+        bp_punts_gua_cartven.codart,
+        garticul.nomart,
+        <!--punts_gua.codsur,-->
+        punts_gua.descompte,
+
+        gartprov.codpro,
+
+        punts_gua.coment,
+        <!--<nvl>punts_gua.tipofe, 'E'</nvl> tipofe,-->
+
+        <!-- carteleria -->
+        bp_punts_gua_cartven.galileo,
+        bp_punts_gua_cartven.capven,
+        bp_punts_gua_cartven.capven_mida,
+        bp_punts_gua_cartven.carmur,
+        bp_punts_gua_cartven.carmur_mida,
+        bp_punts_gua_cartven.carves,
+        bp_punts_gua_cartven.carves_mida,
+        bp_punts_gua_cartven.carsup,
+        bp_punts_gua_cartven.carsup_mida,
+        bp_punts_gua_cartven.cartot,
+        bp_punts_gua_cartven.cartot_mida,
+        
+        
+        bp_rprepofe_cartven.dig_sign,
+        bp_rprepofe_cartven.xxss,
+        bp_rprepofe_cartven.radio,
+        bp_rprepofe_cartven.web,
+        bp_rprepofe_cartven.posterfix
+    </columns>
+    <from table='bp_punts_gua_cartven'>
+        <join table='punts_gua'>
+            <on>bp_punts_gua_cartven.prepid = punts_gua.prepid</on>
+        </join>
+        <join table='garticul'>
+            <on>bp_punts_gua_cartven.codart = garticul.codigo</on>
+        </join>
+        <join table='gartprov'>
+            <on>bp_punts_gua_cartven.codart = gartprov.codart</on>
+        </join>
+        <join type='left' table='gdelegac'>
+            <on>bp_punts_gua_cartven.agrupa = gdelegac.agrupa</on>
+        </join>
+    </from>
+    <where>
+            punts_gua.vigini = $VIGINI
+        AND (bp_punts_gua_cartven.agrupa = $AGRUPA OR bp_punts_gua_cartven.delega = $AGRUPA)
+        AND priori = (SELECT MAX(priori)
+                        FROM gartprov alm_priori
+                       WHERE alm_priori.codart = gartprov.codart)        
+        AND (CAST(bp_rprepofe_cartven.carsup AS char(1)) MATCHES $CARSUP)
+        AND (CAST(bp_rprepofe_cartven.dig_sign AS char(1)) MATCHES $DIG_SIGN)
+        AND (CAST(bp_rprepofe_cartven.xxss AS char(1)) MATCHES $XXSS)
+        AND (CAST(bp_rprepofe_cartven.radio AS char(1)) MATCHES $RADIO)
+        AND (CAST(bp_rprepofe_cartven.web AS char(1)) MATCHES $WEB)
+        AND (CAST(bp_rprepofe_cartven.posterfix AS char(1)) MATCHES $POSTERFIX)
+    </where>
+    <order>6,11</order>
+</select>

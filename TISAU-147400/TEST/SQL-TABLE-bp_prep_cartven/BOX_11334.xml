@@ -1,0 +1,87 @@
+<select>
+    <columns>
+        UNIQUE
+        <rowid table='bp_rprepofe_cartven' />,
+        bp_rprepofe_cartven.prepid,
+        $AGRUPA agrupa,
+        rprepofe.vigini,
+        rprepofe.vigfin,
+        garticul.codfam,
+
+        (SELECT <nvl>group_concat(conmod), ''</nvl>
+           FROM rprepofe rprepofe1
+          WHERE rprepofe1.vigini = rprepofe.vigini
+            AND (rprepofe.preagr = rprepofe1.preagr OR rprepofe.codart = rprepofe1.codart)) || ',' ||
+        (SELECT <nvl>group_concat(conmod2), ''</nvl>
+           FROM rprepofe rprepofe1
+          WHERE rprepofe1.vigini = rprepofe.vigini
+            AND (rprepofe.preagr = rprepofe1.preagr OR rprepofe.codart = rprepofe1.codart)) conmod_tot,
+
+        <nvl><trim>rprepofe.conmod</trim>, ''</nvl> || ',' || <nvl><trim>rprepofe.conmod2</trim>, ''</nvl> conmod,
+
+        bp_rprepofe_cartven.codart,
+        garticul.nomart,
+        rprepofe.codsur,
+        CASE WHEN (INSTR(<trim>rprepofe.conmod</trim>, <trim>bp_rprepofe_cartven.agrupa[1,2]</trim>)  != 0 OR
+                   INSTR(<trim>rprepofe.conmod</trim>, <cast type='char' size='4'><trim>gdelegac.codigo</trim></cast>) != 0)
+             THEN pvpiva
+             WHEN (INSTR(<trim>rprepofe.conmod2</trim>, <trim>bp_rprepofe_cartven.agrupa[1,2]</trim>) != 0 OR
+                   INSTR(<trim>rprepofe.conmod2</trim>, <cast type='char' size='4'><trim>gdelegac.codigo</trim></cast>) != 0)
+             THEN pvpiva2
+             ELSE pvpiva <!-- las delegaciones que no estan en ninguna de las dos condiciones, ignorar -->
+        END pvp,
+
+        gartprov.codpro,
+
+        rprepofe.coment,
+        <nvl>rprepofe.tipofe, 'E'</nvl> tipofe,
+
+        <!-- carteleria -->
+        bp_rprepofe_cartven.galileo,
+        bp_rprepofe_cartven.capven,
+        bp_rprepofe_cartven.capven_mida,
+        bp_rprepofe_cartven.carmur,
+        bp_rprepofe_cartven.carmur_mida,
+        bp_rprepofe_cartven.carves,
+        bp_rprepofe_cartven.carves_mida,
+        bp_rprepofe_cartven.carsup,
+        bp_rprepofe_cartven.carsup_mida,
+        bp_rprepofe_cartven.cartot,
+        bp_rprepofe_cartven.cartot_mida,
+        
+        
+        bp_rprepofe_cartven.dig_sign,
+        bp_rprepofe_cartven.xxss,
+        bp_rprepofe_cartven.radio,
+        bp_rprepofe_cartven.web,
+        bp_rprepofe_cartven.posterfix
+    </columns>
+    <from table='bp_rprepofe_cartven'>
+        <join table='rprepofe'>
+            <on>bp_rprepofe_cartven.prepid = rprepofe.prepid</on>
+        </join>
+        <join table='garticul'>
+            <on>bp_rprepofe_cartven.codart = garticul.codigo</on>
+        </join>
+        <join table='gartprov'>
+            <on>bp_rprepofe_cartven.codart = gartprov.codart</on>
+        </join>
+        <join type='left' table='gdelegac'>
+            <on>bp_rprepofe_cartven.agrupa = gdelegac.agrupa</on>
+        </join>
+    </from>
+    <where>
+            rprepofe.vigini = $VIGINI
+        AND (bp_rprepofe_cartven.agrupa = $AGRUPA OR bp_rprepofe_cartven.delega = $AGRUPA)
+        AND priori = (SELECT MAX(priori)
+                        FROM gartprov alm_priori
+                       WHERE alm_priori.codart = gartprov.codart)
+        AND (CAST(bp_rprepofe_cartven.carsup AS char(1)) MATCHES $CARSUP)
+        AND (CAST(bp_rprepofe_cartven.dig_sign AS char(1)) MATCHES $DIG_SIGN)
+        AND (CAST(bp_rprepofe_cartven.xxss AS char(1)) MATCHES $XXSS)
+        AND (CAST(bp_rprepofe_cartven.radio AS char(1)) MATCHES $RADIO)
+        AND (CAST(bp_rprepofe_cartven.web AS char(1)) MATCHES $WEB)
+        AND (CAST(bp_rprepofe_cartven.posterfix AS char(1)) MATCHES $POSTERFIX)
+    </where>
+    <order>16,6,12</order>
+</select>

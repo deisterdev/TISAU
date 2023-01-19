@@ -1,0 +1,43 @@
+<!-- ====================================================================================== -->
+<!--                                                                                        -->
+<!--    XSQL:  clogproh_fin                                                                 -->
+<!--                                                                                        -->
+<!--    Marca como terminado un proceso al informar log_date_end                            -->
+<!--                                                                                        -->
+<!--    Llamadas :                                                                          -->
+<!--    ==========                                                                          -->
+<!--    Desde cualquier proceso a petición del programador                                  -->
+<!--                                                                                        -->
+<!-- ====================================================================================== -->
+<xsql-script name='clogproh_fin'>
+
+    <args>
+        <arg name='p_log_id'  type='integer'/>
+    </args>
+
+    <body>
+        <!-- ================================================================= -->
+        <!-- Evaluamos parametros                                              -->
+        <!-- ================================================================= -->
+        <if>
+           <expr>
+              <isnull><p_log_id /></isnull>
+           </expr>
+           <then>
+              <exception>clogproh_fin: p_log_id no puede ser nulo</exception>
+           </then>
+        </if>
+
+        <!-- ================================================================= -->
+        <!-- Updateamos 'clogproh' con un timestamp de final                   -->
+        <!-- ================================================================= -->
+        <update table='clogproh'>
+          <column name='log_date_end'><date.current /></column>
+          <where>
+               clogproh.log_id = <p_log_id />
+          </where>
+        </update>
+
+
+    </body>
+</xsql-script>
